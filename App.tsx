@@ -14,17 +14,9 @@ import { initialOrders } from './data/initialOrders.ts';
 import NewOrderModal from './components/NewOrderModal.tsx';
 import { initialProducts } from './data/initialProducts.ts';
 import OnboardingFlow from './screens/OnboardingFlow.tsx';
-
-// --- Mock Data for Realistic Simulation ---
-const mockCustomers: Omit<Customer, 'whatsappNumber'>[] = [
-    { name: 'Rohan Gupta', address: '15/2, Geeta Colony, Near Jheel Chowk, Delhi' },
-    { name: 'Sneha Verma', address: 'House No. 24, Block D, Krishna Nagar, Delhi' },
-    { name: 'Amit Singh', address: 'C-112, Laxmi Nagar, Vikas Marg, New Delhi' },
-    { name: 'Priya Sharma', address: 'F-7, Main Market, Shahdara, Delhi' },
-    { name: 'Vikram Choudhary', address: '48, Radhepuri, Near Gandhi Nagar, Delhi' },
-    { name: 'Neha Patel', address: '8/B, Shastri Nagar, Near Geeta Colony, Delhi' },
-    { name: 'Manish Kumar', address: '201, Ram Nagar, Shahdara, New Delhi' },
-];
+import { mockCustomers } from './data/mockCustomers.ts';
+import { generateRandomPhoneNumber } from './utils/phone.ts';
+import Toast from './components/Toast.tsx';
 
 const AppContent: React.FC = () => {
   const [activeScreen, setActiveScreen] = useState<Screen>(Screen.DASHBOARD);
@@ -61,6 +53,7 @@ const AppContent: React.FC = () => {
   const timeoutRef = useRef<number | null>(null);
   const isSimulatingRef = useRef(false); // To prevent multiple simulation timeouts
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -70,6 +63,7 @@ const AppContent: React.FC = () => {
         }
     } catch (error) {
         console.error("Failed to check onboarding status from localStorage", error);
+        setError("Failed to load onboarding status.");
         // Fallback to showing onboarding if localStorage is inaccessible
         setShowOnboarding(true);
     }
@@ -82,6 +76,7 @@ const AppContent: React.FC = () => {
     } catch (error)
         {
         console.error("Failed to save orders to localStorage", error);
+        setError("Failed to save orders.");
     }
   }, [orders]);
 
@@ -111,6 +106,15 @@ const AppContent: React.FC = () => {
             const product = products.find(p => p.id === item.productId);
             if (product) {
                 const newStock = Math.max(0, product.stock - item.quantity);
+                updateProduct({ ...product, stock: newStock });
+            }
+        });
+    } else if (orderToUpdate && status === OrderStatus.CANCELLED) {
+        // If an order is cancelled, restore the stock
+        orderToUpdate.items.forEach(item => {
+            const product = products.find(p => p.id === item.productId);
+            if (product) {
+                const newStock = product.stock + item.quantity;
                 updateProduct({ ...product, stock: newStock });
             }
         });
@@ -152,7 +156,7 @@ const AppContent: React.FC = () => {
 
     const newOrder: Order = {
       id: `B2C-${Math.floor(1000 + Math.random() * 9000)}`,
-      customer: { ...randomCustomer, whatsappNumber: '+919876543210' }, // Placeholder number
+      customer: { ...randomCustomer, whatsappNumber: generateRandomPhoneNumber() },
       items: orderItems,
       total: total,
       paymentMethod: Math.random() > 0.5 ? 'COD' : 'UPI',
@@ -193,7 +197,7 @@ const AppContent: React.FC = () => {
     if (isInteractionDone && !isSimulatingRef.current) {
       runOrderSimulation();
     }
-  }, [isInteractionDone, orders, runOrderSimulation, newOrderForPopup]);
+  }, [isInteractionDone, runOrderSimulation, newOrderForPopup]);
 
   const renderScreen = () => {
     switch (activeScreen) {
@@ -233,6 +237,7 @@ const AppContent: React.FC = () => {
         )}
       </>
       {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
+      {error && <Toast message={error} onClose={() => setError(null)} />}
     </div>
   );
 };
